@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { collection, query, orderBy, onSnapshot, deleteDoc, doc, updateDoc } from 'firebase/firestore';
   import { db } from '../utils/firebase';
+  import { showNotification } from './Notification.svelte';
 
   let expenses = [];
   let editingExpense = null; // Para almacenar el gasto que se está editando
@@ -36,8 +37,10 @@
   const deleteExpense = async (id) => {
     try {
       await deleteDoc(doc(db, 'gastos', id));
+      showNotification('Gasto eliminado correctamente', 'success');
     } catch (e) {
       console.error("Error removing document: ", e);
+      showNotification('Error al eliminar el gasto', 'error');
     }
   };
 
@@ -63,8 +66,10 @@
         mes: new Date(editedDate).getMonth() + 1,
       });
       editingExpense = null; // Salir del modo de edición
+      showNotification('Gasto actualizado correctamente', 'success');
     } catch (e) {
       console.error("Error updating document: ", e);
+      showNotification('Error al actualizar el gasto', 'error');
     }
   };
 
@@ -171,8 +176,8 @@
                   <input type="date" bind:value={editedDate} class="shadow appearance-none border rounded w-full py-1 px-2 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
                 </td>
                 <td class="py-3 px-4">
-                  <button on:click={updateExpense} class="bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded mr-2">Guardar</button>
-                  <button on:click={cancelEditing} class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-1 px-2 rounded">Cancelar</button>
+                  <button on:click={updateExpense} class="bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded mr-2 transition-all duration-300 ease-in-out cursor-pointer">Guardar</button>
+                  <button on:click={cancelEditing} class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-1 px-2 rounded transition-all duration-300 ease-in-out cursor-pointer">Cancelar</button>
                 </td>
               </tr>
             {:else}
@@ -182,8 +187,8 @@
                 <td class="text-left py-3 px-4">${expense.cantidad.toFixed(2)}</td>
                 <td class="text-left py-3 px-4">{new Date(expense.fecha).toLocaleDateString()}</td>
                 <td class="text-left py-3 px-4">
-                  <button on:click={() => startEditing(expense)} class="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded mr-2">Editar</button>
-                  <button on:click={() => deleteExpense(expense.id)} class="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded">Eliminar</button>
+                  <button on:click={() => startEditing(expense)} class="bg-yellow-500 hover:bg-yellow-700 transition-all duration-300 ease-in-out cursor-pointer text-white font-bold py-1 px-2 rounded mr-2">Editar</button>
+                  <button on:click={() => deleteExpense(expense.id)} class="bg-red-500 hover:bg-red-700 transition-all duration-300 ease-in-out cursor-pointer text-white font-bold py-1 px-2 rounded">Eliminar</button>
                 </td>
               </tr>
             {/if}
