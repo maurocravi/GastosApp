@@ -1,11 +1,13 @@
 ---
-import Welcome from '../components/Welcome.astro';
 import Layout from '../layouts/Layout.astro';
-
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+import ExpenseList from '../components/ExpenseList.svelte';
+import AddExpenseForm from '../components/AddExpenseForm.svelte';
 ---
 
-<Layout>
-	<Welcome />
+<Layout title="Control de Gastos">
+	<main class="container mx-auto p-4">
+		<h1 class="text-3xl font-bold mb-6">Control de Gastos Mensuales</h1>
+		<AddExpenseForm client:load />
+		<ExpenseList client:load />
+	</main>
 </Layout>
