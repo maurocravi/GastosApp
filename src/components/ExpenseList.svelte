@@ -133,7 +133,7 @@
     <div>
       <h2 class="text-2xl font-bold mb-4">Resumen Anual</h2>
       {#if yearlySummaries.length > 0}
-        <ul class="bg-white shadow overflow-hidden sm:rounded-md">
+        <ul class="bg-white shadow-md border overflow-hidden sm:rounded-md">
           {#each yearlySummaries as summary (summary.year)}
             <li class="px-4 py-3 sm:px-6 border-b last:border-b-0">
               <p class="text-lg font-semibold">{summary.year}: <span class="font-normal">${summary.total.toFixed(2)}</span></p>
@@ -147,7 +147,7 @@
     <div>
       <h2 class="text-2xl font-bold mb-4">Resumen Mensual</h2>
       {#if monthlySummaries.length > 0}
-        <ul class="bg-white shadow overflow-hidden sm:rounded-md">
+        <ul class="bg-white shadow-md border overflow-hidden sm:rounded-md">
           {#each monthlySummaries as summary (`${summary.year}-${summary.month}`)}
             <li class="px-4 py-3 sm:px-6 border-b last:border-b-0">
               <p class="text-lg font-semibold">{summary.monthName} {summary.year}: <span class="font-normal">${summary.total.toFixed(2)}</span></p>
