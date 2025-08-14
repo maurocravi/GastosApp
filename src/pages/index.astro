@@ -1,13 +1,37 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import ExpenseList from '../components/ExpenseList.svelte';
 import AddExpenseForm from '../components/AddExpenseForm.svelte';
+import ExpenseChart from '../components/ExpenseChart.svelte';
+import ExpenseList from '../components/ExpenseList.svelte';
+import Notification from '../components/Notification.svelte';
 ---
 
-<Layout title="Control de Gastos">
-	<main class="container mx-auto p-4">
-		<h1 class="text-3xl font-bold mb-6">Control de Gastos Mensuales</h1>
-		<AddExpenseForm client:load />
-		<ExpenseList client:load />
+<Layout title="Seguimiento de Gastos">
+	<main class="text-gray-800">
+		<div class="container mx-auto p-4 sm:p-6 lg:p-8">
+			<div class="text-center mb-12">
+				<h1 class="text-4xl md:text-5xl font-bold">Seguimiento de Gastos</h1>
+				<p class="text-lg text-gray-600 mt-2">Una forma sencilla de llevar un control de tus finanzas personales.</p>
+			</div>
+
+			<!-- Form & Chart Section -->
+			<div class="grid grid-cols-1 lg:grid-cols-5 gap-8 mb-8">
+				<div class="lg:col-span-2">
+					<h2 class="text-xl font-bold text-gray-800 mb-4">Agregar Nuevo Gasto</h2>
+					<div class="bg-white shadow-lg rounded-lg px-6 h-full">
+						<AddExpenseForm client:load />
+					</div>
+				</div>
+				<div class="lg:col-span-3">
+					<ExpenseChart client:load />
+				</div>
+			</div>
+
+			<!-- Expense List Section -->
+			<div class="mt-12">
+				<ExpenseList client:load />
+			</div>
+		</div>
+		<Notification client:load />
 	</main>
 </Layout>
