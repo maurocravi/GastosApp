@@ -44,7 +44,7 @@
   }
 </script>
 
-<div class="bg-white shadow-md rounded px-8 py-8 h-full ">
+<div class="mb-6">
   <h2 class="text-xl font-semibold mb-4">Agregar Nuevo Gasto</h2>
   <form on:submit|preventDefault={addExpense}>
     <div class="mb-4">
