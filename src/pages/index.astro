@@ -18,11 +18,11 @@ import Notification from '../components/Notification.svelte';
 			<div class="grid grid-cols-1 lg:grid-cols-5 gap-8 mb-8">
 				<div class="lg:col-span-2">
 					<h2 class="text-xl font-bold text-gray-800 mb-4">Agregar Nuevo Gasto</h2>
-					<div class="bg-white shadow-lg rounded-lg px-6 h-full">
+					<div class="bg-white shadow-lg rounded-lg p-6">
 						<AddExpenseForm client:load />
 					</div>
 				</div>
-				<div class="lg:col-span-3">
+				<div class="lg:col-span-3 mt-10">
 					<ExpenseChart client:load />
 				</div>
 			</div>

@@ -1,10 +1,10 @@
 <script>
   import { onMount } from 'svelte';
-  import { collection, query, orderBy, onSnapshot, deleteDoc, doc, updateDoc, Timestamp } from 'firebase/firestore';
+  import { paginatedExpenses, currentPage, nextPage, prevPage } from '../stores/expenseStore';
+  import { deleteDoc, doc, updateDoc, Timestamp } from 'firebase/firestore';
   import { db } from '../utils/firebase';
   import { showNotification } from './Notification.svelte';
 
-  let expenses = [];
   let editingExpense = null;
   let editedDescription = '';
   let editedAmount = '';
@@ -25,29 +25,6 @@
     const day = ('0' + d.getDate()).slice(-2);
     return `${year}-${month}-${day}`;
   }
-
-  onMount(() => {
-    const q = query(collection(db, 'gastos'), orderBy('fecha', 'desc'));
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      expenses = querySnapshot.docs.map(doc => {
-        const data = doc.data();
-        const firestoreTimestamp = data.fecha;
-        const date = firestoreTimestamp.toDate();
-        
-        const userTimezoneOffset = date.getTimezoneOffset() * 60000;
-        const adjustedDate = new Date(date.getTime() + userTimezoneOffset);
-
-        return {
-          id: doc.id,
-          ...data,
-          fecha: adjustedDate,
-        };
-      });
-      calculateSummaries();
-    });
-
-    return () => unsubscribe();
-  });
 
   const deleteExpense = async (id) => {
     if (!confirm('¿Estás seguro de que quieres eliminar este gasto?')) return;
@@ -90,7 +67,7 @@
     }
   };
 
-  const calculateSummaries = () => {
+  const calculateSummaries = (expenses) => {
     const monthly = {};
     const yearly = {};
 
@@ -120,13 +97,16 @@
       .map(([key, value]) => value);
   };
 
-  $: if (expenses) {
-    calculateSummaries();
-  }
+  // Subscribe to the paginated store
+  paginatedExpenses.subscribe(value => {
+    if (value && value.data) {
+      calculateSummaries(value.data); // Calculate summaries based on all expenses
+    }
+  });
 </script>
 
 <div class="container mx-auto p-4 sm:p-6 lg:p-8">
-  <!-- Resúmenes -->
+  <!-- Summaries -->
   <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
     <div>
       <h2 class="text-xl font-bold text-gray-800 mb-4">Resumen Anual</h2>
@@ -187,7 +167,11 @@
   <!-- Lista de Gastos -->
   <h2 class="text-xl font-bold text-gray-800 mb-4">Lista de Gastos</h2>
   <div class="bg-white shadow-lg rounded-lg overflow-hidden">
-    {#if expenses.length > 0}
+    {#if $paginatedExpenses.loading}
+      <p class="px-6 py-10 text-center text-gray-500">Cargando gastos...</p>
+    {:else if $paginatedExpenses.error}
+      <p class="px-6 py-10 text-center text-red-500">{$paginatedExpenses.error}</p>
+    {:else if $paginatedExpenses.paginatedData.length > 0}
       <div class="overflow-x-auto">
         <table class="min-w-full text-sm text-left text-gray-700">
           <thead class="bg-gray-50 text-xs text-gray-500 uppercase">
@@ -200,7 +184,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each expenses as expense (expense.id)}
+            {#each $paginatedExpenses.paginatedData as expense (expense.id)}
               {#if editingExpense && editingExpense.id === expense.id}
                 <!-- Fila de Edición -->
                 <tr class="bg-blue-50 border-b">
@@ -213,26 +197,55 @@
                   <td class="px-6 py-4"><input type="number" bind:value={editedAmount} class="w-full bg-white border border-gray-300 rounded-md shadow-sm py-1 px-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-sm"></td>
                   <td class="px-6 py-4"><input type="date" bind:value={editedDate} class="w-full bg-white border border-gray-300 rounded-md shadow-sm py-1 px-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-sm"></td>
                   <td class="px-6 py-4 text-right">
-                    <button on:click={updateExpense} class="font-medium text-green-600 hover:text-green-800 mr-4">Guardar</button>
-                    <button on:click={cancelEditing} class="font-medium text-gray-600 hover:text-gray-800">Cancelar</button>
+                    <button on:click={updateExpense} class="font-medium text-green-600 hover:text-green-800 mr-4 transition-all duration-300 ease-in-out cursor-pointer">Guardar</button>
+                    <button on:click={cancelEditing} class="font-medium text-gray-600 hover:text-gray-800 transition-all duration-300 ease-in-out cursor-pointer">Cancelar</button>
                   </td>
                 </tr>
               {:else}
                 <!-- Fila normal -->
-                <tr class="bg-white border-b border-gray-300 hover:bg-gray-50">
+                <tr class="bg-white border-b border-gray-100 hover:bg-gray-50">
                   <td class="px-6 py-4 font-medium text-gray-900">{expense.descripcion}</td>
                   <td class="px-6 py-4 text-gray-500">{expense.categoria || 'N/A'}</td>
                   <td class="px-6 py-4 text-gray-500">${expense.cantidad.toFixed(2)}</td>
                   <td class="px-6 py-4 text-gray-500">{expense.fecha.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' })}</td>
                   <td class="px-6 py-4 text-right">
-                    <button on:click={() => startEditing(expense)} class="font-medium text-indigo-600 hover:text-indigo-900 mr-4">Editar</button>
-                    <button on:click={() => deleteExpense(expense.id)} class="font-medium text-red-600 hover:text-red-900">Eliminar</button>
+                    <button on:click={() => startEditing(expense)} class="font-medium text-indigo-600 hover:text-indigo-900 mr-4 transition-all duration-300 ease-in-out cursor-pointer">Editar</button>
+                    <button on:click={() => deleteExpense(expense.id)} class="font-medium text-red-600 hover:text-red-900 transition-all duration-300 ease-in-out cursor-pointer">Eliminar</button>
                   </td>
                 </tr>
               {/if}
             {/each}
           </tbody>
         </table>
+      </div>
+      <!-- Pagination Controls -->
+      <div class="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6">
+        <div class="flex flex-1 justify-between sm:hidden">
+          <button on:click={prevPage} disabled={$currentPage === 1} class="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors duration-300 ease-in-out cursor-pointer">Anterior</button>
+          <button on:click={() => nextPage($paginatedExpenses.totalPages)} disabled={$currentPage === $paginatedExpenses.totalPages} class="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors duration-300 ease-in-out cursor-pointer">Siguiente</button>
+        </div>
+        <div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+          <div>
+            <p class="text-sm text-gray-700">
+              Página
+              <span class="font-medium">{$currentPage}</span>
+              de
+              <span class="font-medium">{$paginatedExpenses.totalPages}</span>
+            </p>
+          </div>
+          <div>
+            <nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+              <button on:click={prevPage} disabled={$currentPage === 1} class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 transition-colors duration-300 ease-in-out cursor-pointer">
+                <span class="sr-only">Anterior</span>
+                <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd" /></svg>
+              </button>
+              <button on:click={() => nextPage($paginatedExpenses.totalPages)} disabled={$currentPage === $paginatedExpenses.totalPages} class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 transition-colors duration-300 ease-in-out cursor-pointer">
+                <span class="sr-only">Siguiente</span>
+                <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" /></svg>
+              </button>
+            </nav>
+          </div>
+        </div>
       </div>
     {:else}
       <p class="px-6 py-10 text-center text-gray-500">No hay gastos registrados. ¡Añade uno para empezar!</p>

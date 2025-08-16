@@ -1,4 +1,4 @@
-import { writable } from 'svelte/store';
+import { writable, derived } from 'svelte/store';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../utils/firebase';
 
@@ -13,7 +13,7 @@ const categoryColors = {
 };
 
 const createExpensesStore = () => {
-  const { subscribe, set } = writable({
+  const { subscribe, set, update } = writable({
     loading: true,
     data: [],
     error: null,
@@ -28,7 +28,6 @@ const createExpensesStore = () => {
         const firestoreTimestamp = data.fecha;
         const date = firestoreTimestamp.toDate();
         
-        // Adjust for timezone offset to display the correct date
         const userTimezoneOffset = date.getTimezoneOffset() * 60000;
         const adjustedDate = new Date(date.getTime() + userTimezoneOffset);
 
@@ -36,7 +35,6 @@ const createExpensesStore = () => {
           id: doc.id,
           ...data,
           fecha: adjustedDate,
-          // Assign color to the expense based on its category
           color: categoryColors[data.categoria] || categoryColors.Default
         };
       });
@@ -50,9 +48,47 @@ const createExpensesStore = () => {
 
   return {
     subscribe,
-    unsubscribe, // Optional: to manually stop listening to updates
+    update, // Expose update for optimistic UI
+    unsubscribe,
   };
 };
 
 export const expenses = createExpensesStore();
 export { categoryColors };
+
+// --- Pagination Store ---
+const ITEMS_PER_PAGE = 10;
+
+export const currentPage = writable(1);
+
+export const paginatedExpenses = derived(
+  [expenses, currentPage],
+  ([$expenses, $currentPage]) => {
+    if ($expenses.loading) {
+      return { loading: true, paginatedData: [], totalPages: 1 };
+    }
+    if ($expenses.error) {
+      return { error: $expenses.error, paginatedData: [], totalPages: 1 };
+    }
+
+    const totalItems = $expenses.data.length;
+    const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE) || 1;
+    const startIndex = ($currentPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    const paginatedData = $expenses.data.slice(startIndex, endIndex);
+
+    return {
+      ...$expenses,
+      paginatedData,
+      totalPages
+    };
+  }
+);
+
+export function nextPage(totalPages) {
+  currentPage.update(n => (n < totalPages ? n + 1 : n));
+}
+
+export function prevPage() {
+  currentPage.update(n => (n > 1 ? n - 1 : 1));
+}
