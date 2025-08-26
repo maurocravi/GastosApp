@@ -4,6 +4,7 @@
   import { deleteDoc, doc, updateDoc, Timestamp } from 'firebase/firestore';
   import { db } from '../utils/firebase';
   import { showNotification } from './Notification.svelte';
+  import ConfirmationModal from './ConfirmationModal.svelte';
 
   let editingExpense = null;
   let editedDescription = '';
@@ -11,12 +12,19 @@
   let editedDate = '';
   let editedCategory = '';
 
+  let isModalOpen = false;
+  let expenseToDeleteId = null;
+
   const categories = ['Ocio', 'Comida/Bebida', 'Hogar', 'Gastos Personales', 'Otros'];
   let monthlySummaries = {};
   let yearlySummaries = {};
 
   const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
                       "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+
+  $: if ($currentPage > $paginatedExpenses.totalPages) {
+    currentPage.set($paginatedExpenses.totalPages || 1);
+  }
 
   function formatDateForInput(date) {
     const d = new Date(date);
@@ -26,22 +34,36 @@
     return `${year}-${month}-${day}`;
   }
 
-  const deleteExpense = async (id) => {
-    if (!confirm('¿Estás seguro de que quieres eliminar este gasto?')) return;
-    try {
-      await deleteDoc(doc(db, 'gastos', id));
-      showNotification('Gasto eliminado correctamente', 'success');
-    } catch (e) {
-      console.error("Error removing document: ", e);
-      showNotification('Error al eliminar el gasto', 'error');
+  const handleDeleteRequest = (id) => {
+    expenseToDeleteId = id;
+    isModalOpen = true;
+  };
+
+  const handleModalConfirm = async () => {
+    isModalOpen = false;
+    if (expenseToDeleteId) {
+      try {
+        await deleteDoc(doc(db, 'gastos', expenseToDeleteId));
+        showNotification('Gasto eliminado correctamente', 'success');
+      } catch (e) {
+        console.error("Error removing document: ", e);
+        showNotification('Error al eliminar el gasto', 'error');
+      } finally {
+        expenseToDeleteId = null;
+      }
     }
+  };
+
+  const handleModalCancel = () => {
+    isModalOpen = false;
+    expenseToDeleteId = null;
   };
 
   const startEditing = (expense) => {
     editingExpense = expense;
     editedDescription = expense.descripcion;
     editedAmount = expense.cantidad;
-    editedDate = formatDateForInput(expense.fecha);
+    editedDate = formatDateForInput(expense.fecha.toDate ? expense.fecha.toDate() : expense.fecha);
     editedCategory = expense.categoria || 'Otros';
   };
 
@@ -72,7 +94,7 @@
     const yearly = {};
 
     expenses.forEach(expense => {
-      const date = new Date(expense.fecha);
+      const date = expense.fecha.toDate ? expense.fecha.toDate() : new Date(expense.fecha);
       const year = date.getUTCFullYear();
       const month = date.getUTCMonth();
 
@@ -97,13 +119,24 @@
       .map(([key, value]) => value);
   };
 
-  // Subscribe to the paginated store
+  function formatExpenseDate(fecha) {
+    const date = fecha.toDate ? fecha.toDate() : fecha;
+    return date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
+  }
+
   paginatedExpenses.subscribe(value => {
     if (value && value.data) {
-      calculateSummaries(value.data); // Calculate summaries based on all expenses
+      calculateSummaries(value.data);
     }
   });
 </script>
+
+<ConfirmationModal
+  bind:isOpen={isModalOpen}
+  message="¿Estás seguro de que quieres eliminar este gasto? Esta acción no se puede deshacer."
+  on:confirm={handleModalConfirm}
+  on:cancel={handleModalCancel}
+/>
 
 <div class="container mx-auto p-4 sm:p-6 lg:p-8">
   <!-- Summaries -->
@@ -207,10 +240,10 @@
                   <td class="px-6 py-4 font-medium text-gray-900">{expense.descripcion}</td>
                   <td class="px-6 py-4 text-gray-500">{expense.categoria || 'N/A'}</td>
                   <td class="px-6 py-4 text-gray-500">${expense.cantidad.toFixed(2)}</td>
-                  <td class="px-6 py-4 text-gray-500">{expense.fecha.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' })}</td>
+                  <td class="px-6 py-4 text-gray-500">{formatExpenseDate(expense.fecha)}</td>
                   <td class="px-6 py-4 text-right">
                     <button on:click={() => startEditing(expense)} class="font-medium text-indigo-600 hover:text-indigo-900 mr-4 transition-all duration-300 ease-in-out cursor-pointer">Editar</button>
-                    <button on:click={() => deleteExpense(expense.id)} class="font-medium text-red-600 hover:text-red-900 transition-all duration-300 ease-in-out cursor-pointer">Eliminar</button>
+                    <button on:click={() => handleDeleteRequest(expense.id)} class="font-medium text-red-600 hover:text-red-900 transition-all duration-300 ease-in-out cursor-pointer">Eliminar</button>
                   </td>
                 </tr>
               {/if}
@@ -241,7 +274,7 @@
               </button>
               <button on:click={() => nextPage($paginatedExpenses.totalPages)} disabled={$currentPage === $paginatedExpenses.totalPages} class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 transition-colors duration-300 ease-in-out cursor-pointer">
                 <span class="sr-only">Siguiente</span>
-                <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" /></svg>
+                <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010-1.08l-4.5-4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" /></svg>
               </button>
             </nav>
           </div>

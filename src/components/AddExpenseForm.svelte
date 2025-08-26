@@ -2,7 +2,6 @@
     import { collection, addDoc, Timestamp } from 'firebase/firestore';
     import { db } from '../utils/firebase';
     import { showNotification } from './Notification.svelte';
-    import { expenses as expenseStore } from '../stores/expenseStore';
 
     let description = '';
     let amount = '';
@@ -25,16 +24,7 @@
                 fecha: Timestamp.fromDate(new Date(date)),
             };
 
-            const docRef = await addDoc(collection(db, 'gastos'), newExpense);
-
-            // Optimistically update the store
-            expenseStore.update(currentExpenses => {
-                const newExpenseWithId = { ...newExpense, id: docRef.id };
-                return {
-                    ...currentExpenses,
-                    data: [newExpenseWithId, ...currentExpenses.data].sort((a, b) => b.fecha.seconds - a.fecha.seconds)
-                };
-            });
+            await addDoc(collection(db, 'gastos'), newExpense);
 
             showNotification('Gasto agregado correctamente', 'success');
 
