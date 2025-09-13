@@ -31,9 +31,13 @@ const createExpensesStore = () => {
         const userTimezoneOffset = date.getTimezoneOffset() * 60000;
         const adjustedDate = new Date(date.getTime() + userTimezoneOffset);
 
+        // FIX: Normalize data to handle old (cantidad) and new (monto) fields.
+        const monto = data.monto !== undefined ? data.monto : data.cantidad;
+
         return {
           id: doc.id,
           ...data,
+          monto: monto, // Ensure 'monto' is always present
           fecha: adjustedDate,
           color: categoryColors[data.categoria] || categoryColors.Default
         };
@@ -55,6 +59,55 @@ const createExpensesStore = () => {
 
 export const expenses = createExpensesStore();
 export { categoryColors };
+
+export const monthlyExpenses = derived(expenses, $expenses => {
+  if ($expenses.loading || !$expenses.data.length) return [];
+
+  const monthlyTotals = $expenses.data.reduce((acc, expense) => {
+    const date = new Date(expense.fecha);
+    const month = date.toLocaleString('es-ES', { month: 'long' });
+    const year = date.getFullYear();
+    const key = `${month}-${year}`;
+
+    if (!acc[key]) {
+      acc[key] = { month, year, total: 0 };
+    }
+    acc[key].total += expense.monto;
+    return acc;
+  }, {});
+
+  return Object.values(monthlyTotals);
+});
+
+
+export const dailyExpensesTotal = derived(expenses, $expenses => {
+  if ($expenses.loading || !$expenses.data.length) return 0;
+  const today = new Date().setHours(0, 0, 0, 0);
+  return $expenses.data
+    .filter(e => new Date(e.fecha).setHours(0, 0, 0, 0) === today)
+    .reduce((acc, curr) => acc + curr.monto, 0); // FIX: Was acc.monto + curr.monto
+}, 0);
+
+export const weeklyExpensesTotal = derived(expenses, $expenses => {
+    if ($expenses.loading || !$expenses.data.length) return 0;
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const startOfWeek = new Date(today);
+    startOfWeek.setDate(today.getDate() - dayOfWeek);
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    endOfWeek.setHours(23, 59, 59, 999);
+    
+    return $expenses.data
+        .filter(e => {
+            const expenseDate = new Date(e.fecha);
+            return expenseDate >= startOfWeek && expenseDate <= endOfWeek;
+        })
+        .reduce((acc, curr) => acc + curr.monto, 0);
+}, 0);
+
 
 // --- Pagination Store ---
 const ITEMS_PER_PAGE = 10;
@@ -78,7 +131,8 @@ export const paginatedExpenses = derived(
     const paginatedData = $expenses.data.slice(startIndex, endIndex);
 
     return {
-      ...$expenses,
+      ...
+$expenses,
       paginatedData,
       totalPages
     };

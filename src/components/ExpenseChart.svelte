@@ -1,98 +1,95 @@
 <script>
   import { onMount } from 'svelte';
-  import { Chart, DoughnutController, ArcElement, CategoryScale, Legend, Title, Tooltip } from 'chart.js';
-  import { expenses as expenseStore } from '../stores/expenseStore';
+  import Chart from 'chart.js/auto';
+  import { expenses, categoryColors } from '../stores/expenseStore.js';
 
-  let canvas;
-  let chart;
-  let expenses = [];
+  let chartCanvas;
+  let expenseChart;
+  let currentMonthTotal = 0;
 
-  // Register Chart.js components
-  Chart.register(DoughnutController, ArcElement, CategoryScale, Legend, Title, Tooltip);
+  expenses.subscribe(value => {
+    if (value.loading || !value.data.length) return;
 
-  // Subscribe to the expense store
-  const unsubscribe = expenseStore.subscribe(value => {
-    if (value.data) {
-      expenses = value.data;
-      if (chart) {
-        updateChart();
-      }
+    const monthlyData = processMonthlyData(value.data);
+    currentMonthTotal = monthlyData.currentMonthTotal;
+    if (expenseChart) {
+      updateChart(monthlyData.chartData);
+    } else {
+      createChart(monthlyData.chartData);
     }
   });
 
-  onMount(() => {
-    const ctx = canvas.getContext('2d');
-    chart = new Chart(ctx, {
-      type: 'doughnut',
-      data: {
-        labels: [],
+  function processMonthlyData(data) {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    const monthlyExpenses = data.filter(e => {
+      const expenseDate = new Date(e.fecha);
+      return expenseDate.getMonth() === currentMonth && expenseDate.getFullYear() === currentYear;
+    });
+
+    const total = monthlyExpenses.reduce((acc, curr) => acc + curr.monto, 0);
+
+    const categoryTotals = monthlyExpenses.reduce((acc, curr) => {
+      acc[curr.categoria] = (acc[curr.categoria] || 0) + curr.monto;
+      return acc;
+    }, {});
+
+    const labels = Object.keys(categoryTotals);
+    const chartDataValues = Object.values(categoryTotals);
+    const backgroundColors = labels.map(label => categoryColors[label] || categoryColors.Default);
+
+    return {
+      currentMonthTotal: total,
+      chartData: {
+        labels,
         datasets: [{
-          data: [],
-          backgroundColor: [],
-          hoverOffset: 4
+          data: chartDataValues,
+          backgroundColor: backgroundColors
         }]
-      },
+      }
+    };
+  }
+
+  function createChart(data) {
+    if (!chartCanvas) return;
+    expenseChart = new Chart(chartCanvas, {
+      type: 'doughnut',
+      data: data,
       options: {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
           legend: {
-            position: 'top',
-          },
-          title: {
-            display: true,
-            text: 'Distribución de Gastos por Categoría'
-          },
-          tooltip: {
-            callbacks: {
-              label: function(context) {
-              let amount = '';
-              if (context.parsed !== null) {
-              // Formatea el valor numérico como moneda y lo devuelve.
-              amount = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(context.parsed);
-               }
-              return amount;
-             }
-            }
+            position: 'bottom',
           }
         }
       }
     });
-    updateChart();
-
-    return () => {
-      unsubscribe();
-      chart.destroy();
-    };
-  });
-
-  function updateChart() {
-    if (!chart || !expenses.length) return;
-
-    const categories = {};
-    expenses.forEach(expense => {
-      if (categories[expense.categoria]) {
-        categories[expense.categoria] += expense.cantidad;
-      } else {
-        categories[expense.categoria] = expense.cantidad;
-      }
-    });
-
-    const categoryColors = {
-        'Comida/Bebida': '#3B82F6', // blue-500
-        'Gastos Personales': '#10B981', // green-500
-        'Hogar': '#F59E0B',    // yellow-500
-        'Ocio': '#EF4444',      // red-500
-        'Otros': '#8B5CF6',    // purple-500
-    };
-
-    chart.data.labels = Object.keys(categories);
-    chart.data.datasets[0].data = Object.values(categories);
-    chart.data.datasets[0].backgroundColor = chart.data.labels.map(label => categoryColors[label] || '#6B7280'); // gray-500 for fallback
-    chart.update();
   }
+
+  function updateChart(data) {
+    if (!expenseChart) return;
+    expenseChart.data = data;
+    expenseChart.update();
+  }
+
+  onMount(() => {
+    const currentExpenses = $expenses;
+    if (!currentExpenses.loading && currentExpenses.data.length) {
+        const monthlyData = processMonthlyData(currentExpenses.data);
+        if(!expenseChart){
+            createChart(monthlyData.chartData);
+        }
+    }
+  });
 </script>
 
-<div class="bg-white shadow-lg rounded-lg p-4 h-full">
-  <canvas bind:this={canvas}></canvas>
+<div class="bg-white p-4 rounded-lg shadow-md">
+    <h2 class="text-xl font-bold mb-2">Resumen del Mes</h2>
+    <p class="text-lg">Total gastado este mes: <span class="font-semibold">${currentMonthTotal.toFixed(2)}</span></p>
+    <div class="mt-4 h-64">
+        <canvas bind:this={chartCanvas}></canvas>
+    </div>
 </div>

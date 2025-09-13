@@ -1,10 +1,11 @@
 <script>
   import { onMount } from 'svelte';
-  import { paginatedExpenses, currentPage, nextPage, prevPage } from '../stores/expenseStore';
+  import { paginatedExpenses, currentPage, nextPage, prevPage, monthlyExpenses } from '../stores/expenseStore';
   import { deleteDoc, doc, updateDoc, Timestamp } from 'firebase/firestore';
   import { db } from '../utils/firebase';
   import { showNotification } from './Notification.svelte';
   import ConfirmationModal from './ConfirmationModal.svelte';
+  import MonthlyHistoryModal from './MonthlyHistoryModal.svelte';
 
   let editingExpense = null;
   let editedDescription = '';
@@ -12,11 +13,13 @@
   let editedDate = '';
   let editedCategory = '';
 
-  let isModalOpen = false;
+  let isConfirmationModalOpen = false;
+  let isHistoryModalOpen = false;
   let expenseToDeleteId = null;
+  
+  let currentMonthTotal = 0;
 
   const categories = ['Ocio', 'Comida/Bebida', 'Hogar', 'Gastos Personales', 'Otros'];
-  let monthlySummaries = {};
   let yearlySummaries = {};
 
   const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -25,6 +28,16 @@
   $: if ($currentPage > $paginatedExpenses.totalPages) {
     currentPage.set($paginatedExpenses.totalPages || 1);
   }
+  
+  monthlyExpenses.subscribe(value => {
+      if(!value.length) return;
+      const now = new Date();
+      const currentMonthName = now.toLocaleString('es-ES', { month: 'long' });
+      const currentYear = now.getFullYear();
+
+      const currentMonthData = value.find(item => item.month.toLowerCase() === currentMonthName.toLowerCase() && item.year === currentYear);
+      currentMonthTotal = currentMonthData ? currentMonthData.total : 0;
+  });
 
   function formatDateForInput(date) {
     const d = new Date(date);
@@ -36,11 +49,11 @@
 
   const handleDeleteRequest = (id) => {
     expenseToDeleteId = id;
-    isModalOpen = true;
+    isConfirmationModalOpen = true;
   };
 
   const handleModalConfirm = async () => {
-    isModalOpen = false;
+    isConfirmationModalOpen = false;
     if (expenseToDeleteId) {
       try {
         await deleteDoc(doc(db, 'gastos', expenseToDeleteId));
@@ -55,15 +68,15 @@
   };
 
   const handleModalCancel = () => {
-    isModalOpen = false;
+    isConfirmationModalOpen = false;
     expenseToDeleteId = null;
   };
 
   const startEditing = (expense) => {
     editingExpense = expense;
     editedDescription = expense.descripcion;
-    editedAmount = expense.cantidad;
-    editedDate = formatDateForInput(expense.fecha.toDate ? expense.fecha.toDate() : expense.fecha);
+    editedAmount = expense.monto;
+    editedDate = formatDateForInput(expense.fecha);
     editedCategory = expense.categoria || 'Otros';
   };
 
@@ -77,8 +90,8 @@
       
       await updateDoc(expenseRef, {
         descripcion: editedDescription,
-        cantidad: parseFloat(editedAmount),
-        fecha: Timestamp.fromDate(new Date(editedDate)),
+        monto: parseFloat(editedAmount),
+        fecha: new Date(editedDate),
         categoria: editedCategory
       });
       editingExpense = null;
@@ -90,38 +103,24 @@
   };
 
   const calculateSummaries = (expenses) => {
-    const monthly = {};
     const yearly = {};
 
     expenses.forEach(expense => {
-      const date = expense.fecha.toDate ? expense.fecha.toDate() : new Date(expense.fecha);
-      const year = date.getUTCFullYear();
-      const month = date.getUTCMonth();
-
-      const monthYearKey = `${year}-${month}`;
-      if (!monthly[monthYearKey]) {
-        monthly[monthYearKey] = { year: year, month: month, total: 0 };
-      }
-      monthly[monthYearKey].total += expense.cantidad;
+      const date = new Date(expense.fecha);
+      const year = date.getFullYear();
 
       if (!yearly[year]) {
         yearly[year] = { year: year, total: 0 };
       }
-      yearly[year].total += expense.cantidad;
+      yearly[year].total += expense.monto;
     });
 
-    monthlySummaries = Object.entries(monthly)
-      .sort(([keyA], [keyB]) => keyB.localeCompare(keyA))
-      .map(([key, value]) => ({ ...value, monthName: monthNames[value.month] }));
-
-    yearlySummaries = Object.entries(yearly)
-      .sort(([yearA], [yearB]) => parseInt(yearB) - parseInt(yearA))
-      .map(([key, value]) => value);
+    yearlySummaries = Object.values(yearly).sort((a,b) => b.year - a.year);
   };
 
   function formatExpenseDate(fecha) {
-    const date = fecha.toDate ? fecha.toDate() : fecha;
-    return date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
+    const date = new Date(fecha);
+    return date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
   }
 
   paginatedExpenses.subscribe(value => {
@@ -132,11 +131,13 @@
 </script>
 
 <ConfirmationModal
-  bind:isOpen={isModalOpen}
+  bind:isOpen={isConfirmationModalOpen}
   message="¿Estás seguro de que quieres eliminar este gasto? Esta acción no se puede deshacer."
   on:confirm={handleModalConfirm}
   on:cancel={handleModalCancel}
 />
+
+<MonthlyHistoryModal bind:isOpen={isHistoryModalOpen} />
 
 <div class="container mx-auto p-4 sm:p-6 lg:p-8">
   <!-- Summaries -->
@@ -144,7 +145,7 @@
     <div>
       <h2 class="text-xl font-bold text-gray-800 mb-4">Resumen Anual</h2>
       <div class="bg-white shadow-lg rounded-lg overflow-hidden">
-        {#if yearlySummaries.length > 0}
+        {#if Object.keys(yearlySummaries).length > 0}
           <div class="overflow-x-auto">
             <table class="min-w-full text-sm text-left text-gray-700">
               <thead class="bg-gray-50 text-xs text-gray-500 uppercase">
@@ -154,7 +155,7 @@
                 </tr>
               </thead>
               <tbody>
-                {#each yearlySummaries as summary (summary.year)}
+                {#each Object.values(yearlySummaries) as summary (summary.year)}
                   <tr class="bg-white ">
                     <td class="px-6 py-4 font-medium text-gray-900">{summary.year}</td>
                     <td class="px-6 py-4 text-gray-500">${summary.total.toFixed(2)}</td>
@@ -169,31 +170,14 @@
       </div>
     </div>
     <div>
-      <h2 class="text-xl font-bold text-gray-800 mb-4">Resumen Mensual</h2>
-      <div class="bg-white shadow-lg rounded-lg overflow-hidden">
-        {#if monthlySummaries.length > 0}
-          <div class="overflow-x-auto max-h-80">
-            <table class="min-w-full text-sm text-left text-gray-700">
-              <thead class="bg-gray-50 text-xs text-gray-500 uppercase sticky top-0">
-                <tr>
-                  <th scope="col" class="px-6 py-3">Mes</th>
-                  <th scope="col" class="px-6 py-3">Total</th>
-                </tr>
-              </thead>
-              <tbody class="overflow-y-auto">
-                {#each monthlySummaries as summary (`${summary.year}-${summary.month}`)}
-                  <tr class="bg-white">
-                    <td class="px-6 py-4 font-medium text-gray-900">{summary.monthName} {summary.year}</td>
-                    <td class="px-6 py-4 text-gray-500">${summary.total.toFixed(2)}</td>
-                  </tr>
-                {/each}
-              </tbody>
-            </table>
-          </div>
-        {:else}
-          <p class="p-6 text-center text-gray-500">No hay datos para el resumen mensual.</p>
-        {/if}
-      </div>
+        <h2 class="text-xl font-bold text-gray-800 mb-4">Resumen Mensual</h2>
+        <div class="bg-white shadow-lg rounded-lg p-6 flex flex-col items-center justify-center">
+            <p class="text-lg text-gray-600">Total del mes actual:</p>
+            <p class="text-3xl font-bold text-gray-900 my-2">${currentMonthTotal.toFixed(2)}</p>
+            <button class="mt-4 px-6 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-300" on:click={() => isHistoryModalOpen = true}>
+                Ver historial de meses
+            </button>
+        </div>
     </div>
   </div>
 
@@ -204,14 +188,14 @@
       <p class="px-6 py-10 text-center text-gray-500">Cargando gastos...</p>
     {:else if $paginatedExpenses.error}
       <p class="px-6 py-10 text-center text-red-500">{$paginatedExpenses.error}</p>
-    {:else if $paginatedExpenses.paginatedData.length > 0}
+    {:else if $paginatedExpenses.paginatedData && $paginatedExpenses.paginatedData.length > 0}
       <div class="overflow-x-auto">
         <table class="min-w-full text-sm text-left text-gray-700">
           <thead class="bg-gray-50 text-xs text-gray-500 uppercase">
             <tr>
               <th scope="col" class="px-6 py-3">Descripción</th>
               <th scope="col" class="px-6 py-3">Categoría</th>
-              <th scope="col" class="px-6 py-3">Cantidad</th>
+              <th scope="col" class="px-6 py-3">Monto</th>
               <th scope="col" class="px-6 py-3">Fecha</th>
               <th scope="col" class="px-6 py-3 text-right">Acciones</th>
             </tr>
@@ -239,7 +223,7 @@
                 <tr class="bg-white border-b border-gray-100 hover:bg-gray-50">
                   <td class="px-6 py-4 font-medium text-gray-900">{expense.descripcion}</td>
                   <td class="px-6 py-4 text-gray-500">{expense.categoria || 'N/A'}</td>
-                  <td class="px-6 py-4 text-gray-500">${expense.cantidad.toFixed(2)}</td>
+                  <td class="px-6 py-4 text-gray-500">${expense.monto.toFixed(2)}</td>
                   <td class="px-6 py-4 text-gray-500">{formatExpenseDate(expense.fecha)}</td>
                   <td class="px-6 py-4 text-right">
                     <button on:click={() => startEditing(expense)} class="font-medium text-indigo-600 hover:text-indigo-900 mr-4 transition-all duration-300 ease-in-out cursor-pointer">Editar</button>
@@ -280,7 +264,7 @@
           </div>
         </div>
       </div>
-    {:else}
+    {:else if !$paginatedExpenses.loading}
       <p class="px-6 py-10 text-center text-gray-500">No hay gastos registrados. ¡Añade uno para empezar!</p>
     {/if}
   </div>
