@@ -4,7 +4,7 @@
   import { showNotification } from "./Notification.svelte";
 
   let descripcion = "";
-  let monto = "";
+  let cantidad = "";
   let fecha = new Date().toISOString().slice(0, 10);
   let categoria = "Ocio";
 
@@ -17,12 +17,12 @@
   ];
 
   const handleSubmit = async () => {
-    if (!descripcion || !monto || !fecha || !categoria) return;
+    if (!descripcion || !cantidad || !fecha || !categoria) return;
 
     try {
       await addDoc(collection(db, "gastos"), {
         descripcion: descripcion,
-        monto: parseFloat(monto),
+        cantidad: parseFloat(cantidad),
         fecha: new Date(fecha),
         categoria: categoria,
       });
@@ -31,7 +31,7 @@
 
       // Reset form
       descripcion = "";
-      monto = "";
+      cantidad = "";
       fecha = new Date().toISOString().slice(0, 10);
       categoria = "Ocio";
     } catch (e) {
@@ -60,13 +60,13 @@
   </div>
 
   <div>
-    <label for="monto" class="block text-sm font-medium text-gray-700"
+    <label for="cantidad" class="block text-sm font-medium text-gray-700"
       >Monto</label
     >
     <input
       type="number"
-      id="monto"
-      bind:value={monto}
+      id="cantidad"
+      bind:value={cantidad}
       required
       class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
       placeholder="0.00"

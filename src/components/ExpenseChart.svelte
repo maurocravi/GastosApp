@@ -2,10 +2,12 @@
   import { onMount } from 'svelte';
   import Chart from 'chart.js/auto';
   import { expenses, categoryColors } from '../stores/expenseStore.js';
+  import MonthlyHistoryModal from './MonthlyHistoryModal.svelte';
 
   let chartCanvas;
   let expenseChart;
   let currentMonthTotal = 0;
+  let isHistoryModalOpen = false;
 
   expenses.subscribe(value => {
     if (value.loading || !value.data.length) return;
@@ -86,10 +88,15 @@
   });
 </script>
 
-<div class="bg-white p-4 rounded-lg shadow-md">
+<MonthlyHistoryModal bind:isOpen={isHistoryModalOpen} />
+
+<div class="bg-white p-4 rounded-lg shadow-md flex flex-col h-full">
     <h2 class="text-xl font-bold mb-2">Resumen del Mes</h2>
     <p class="text-lg">Total gastado este mes: <span class="font-semibold">${currentMonthTotal.toFixed(2)}</span></p>
-    <div class="mt-4 h-64">
+    <div class="mt-4 h-64 flex-grow">
         <canvas bind:this={chartCanvas}></canvas>
     </div>
+    <button class="mt-4 px-6 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-300" on:click={() => isHistoryModalOpen = true}>
+        Ver historial de meses
+    </button>
 </div>

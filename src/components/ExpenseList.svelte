@@ -1,11 +1,9 @@
 <script>
-  import { onMount } from 'svelte';
-  import { paginatedExpenses, currentPage, nextPage, prevPage, monthlyExpenses } from '../stores/expenseStore';
-  import { deleteDoc, doc, updateDoc, Timestamp } from 'firebase/firestore';
+  import { paginatedExpenses, currentPage, nextPage, prevPage } from '../stores/expenseStore';
+  import { deleteDoc, doc, updateDoc } from 'firebase/firestore';
   import { db } from '../utils/firebase';
   import { showNotification } from './Notification.svelte';
   import ConfirmationModal from './ConfirmationModal.svelte';
-  import MonthlyHistoryModal from './MonthlyHistoryModal.svelte';
 
   let editingExpense = null;
   let editedDescription = '';
@@ -14,30 +12,13 @@
   let editedCategory = '';
 
   let isConfirmationModalOpen = false;
-  let isHistoryModalOpen = false;
   let expenseToDeleteId = null;
-  
-  let currentMonthTotal = 0;
 
   const categories = ['Ocio', 'Comida/Bebida', 'Hogar', 'Gastos Personales', 'Otros'];
-  let yearlySummaries = {};
-
-  const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-                      "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
   $: if ($currentPage > $paginatedExpenses.totalPages) {
     currentPage.set($paginatedExpenses.totalPages || 1);
   }
-  
-  monthlyExpenses.subscribe(value => {
-      if(!value.length) return;
-      const now = new Date();
-      const currentMonthName = now.toLocaleString('es-ES', { month: 'long' });
-      const currentYear = now.getFullYear();
-
-      const currentMonthData = value.find(item => item.month.toLowerCase() === currentMonthName.toLowerCase() && item.year === currentYear);
-      currentMonthTotal = currentMonthData ? currentMonthData.total : 0;
-  });
 
   function formatDateForInput(date) {
     const d = new Date(date);
@@ -102,32 +83,11 @@
     }
   };
 
-  const calculateSummaries = (expenses) => {
-    const yearly = {};
-
-    expenses.forEach(expense => {
-      const date = new Date(expense.fecha);
-      const year = date.getFullYear();
-
-      if (!yearly[year]) {
-        yearly[year] = { year: year, total: 0 };
-      }
-      yearly[year].total += expense.monto;
-    });
-
-    yearlySummaries = Object.values(yearly).sort((a,b) => b.year - a.year);
-  };
-
   function formatExpenseDate(fecha) {
     const date = new Date(fecha);
     return date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
   }
 
-  paginatedExpenses.subscribe(value => {
-    if (value && value.data) {
-      calculateSummaries(value.data);
-    }
-  });
 </script>
 
 <ConfirmationModal
@@ -137,50 +97,7 @@
   on:cancel={handleModalCancel}
 />
 
-<MonthlyHistoryModal bind:isOpen={isHistoryModalOpen} />
-
 <div class="container mx-auto p-4 sm:p-6 lg:p-8">
-  <!-- Summaries -->
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-    <div>
-      <h2 class="text-xl font-bold text-gray-800 mb-4">Resumen Anual</h2>
-      <div class="bg-white shadow-lg rounded-lg overflow-hidden">
-        {#if Object.keys(yearlySummaries).length > 0}
-          <div class="overflow-x-auto">
-            <table class="min-w-full text-sm text-left text-gray-700">
-              <thead class="bg-gray-50 text-xs text-gray-500 uppercase">
-                <tr>
-                  <th scope="col" class="px-6 py-3">Año</th>
-                  <th scope="col" class="px-6 py-3">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {#each Object.values(yearlySummaries) as summary (summary.year)}
-                  <tr class="bg-white ">
-                    <td class="px-6 py-4 font-medium text-gray-900">{summary.year}</td>
-                    <td class="px-6 py-4 text-gray-500">${summary.total.toFixed(2)}</td>
-                  </tr>
-                {/each}
-              </tbody>
-            </table>
-          </div>
-        {:else}
-          <p class="p-6 text-center text-gray-500">No hay datos para el resumen anual.</p>
-        {/if}
-      </div>
-    </div>
-    <div>
-        <h2 class="text-xl font-bold text-gray-800 mb-4">Resumen Mensual</h2>
-        <div class="bg-white shadow-lg rounded-lg p-6 flex flex-col items-center justify-center">
-            <p class="text-lg text-gray-600">Total del mes actual:</p>
-            <p class="text-3xl font-bold text-gray-900 my-2">${currentMonthTotal.toFixed(2)}</p>
-            <button class="mt-4 px-6 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-300" on:click={() => isHistoryModalOpen = true}>
-                Ver historial de meses
-            </button>
-        </div>
-    </div>
-  </div>
-
   <!-- Lista de Gastos -->
   <h2 class="text-xl font-bold text-gray-800 mb-4">Lista de Gastos</h2>
   <div class="bg-white shadow-lg rounded-lg overflow-hidden">

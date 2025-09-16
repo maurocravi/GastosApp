@@ -4,6 +4,7 @@ import AddExpenseForm from '../components/AddExpenseForm.svelte';
 import ExpenseChart from '../components/ExpenseChart.svelte';
 import ExpenseList from '../components/ExpenseList.svelte';
 import Notification from '../components/Notification.svelte';
+import AnnualSummary from '../components/AnnualSummary.svelte';
 ---
 
 <Layout title="Seguimiento de Gastos">
@@ -14,17 +15,16 @@ import Notification from '../components/Notification.svelte';
 				<p class="text-lg text-gray-600 mt-2">Una forma sencilla de llevar un control de tus finanzas personales.</p>
 			</div>
 
-			<!-- Form & Chart Section -->
-			<div class="grid grid-cols-1 lg:grid-cols-5 gap-8 mb-8">
-				<div class="lg:col-span-2">
-					<h2 class="text-xl font-bold text-gray-800 mb-4">Agregar Nuevo Gasto</h2>
-					<div class="">
-						<AddExpenseForm client:load />
-					</div>
-				</div>
-				<div class="lg:col-span-3 mt-10">
-					<ExpenseChart client:load />
-				</div>
+			<!-- Add Expense Form -->
+			<div class="mb-8 max-w-lg mx-auto">
+				<h2 class="text-xl font-bold text-gray-800 mb-4">Agregar Nuevo Gasto</h2>
+				<AddExpenseForm client:load />
+			</div>
+
+			<!-- Summaries Section -->
+			<div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+				<AnnualSummary client:load />
+				<ExpenseChart client:load />
 			</div>
 
 			<!-- Expense List Section -->
