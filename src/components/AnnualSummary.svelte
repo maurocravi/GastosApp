@@ -42,7 +42,7 @@
         data: {
           labels: labels,
           datasets: [{
-            label: 'Total Anual',
+            label:' ' + 'Total Anual',
             data: totals,
             backgroundColor: chartColors.slice(0, $yearlyExpenses.length),
             borderWidth: 0
